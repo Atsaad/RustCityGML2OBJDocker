@@ -1,44 +1,164 @@
-# :cityscape: RustCityGML2OBJ :cityscape:
-Command line converter of **CityGML (.gml)** to **OBJ (.obj)** files. This project is at an early stage and is currently being further developed.
-## :arrow_forward: How to run?
+## 🏧 RustCityGML2OBJ (Dockerized)
 
-  `--input  your-input-citygml-path-here` 
-  
-  `--output  your-output-obj-path-here` 
+**RustCityGML2OBJ** is a Rust-based tool for converting CityGML files to OBJ format. This documentation outlines how to use, build, and run the application via Docker and includes the associated automation via GitHub Actions.
 
-Please make sure to use the absolute paths to the respective directories.
+---
 
-### :wrench: Detailed Project Description
-+ Every building will be converted into a set of `.obj` files
-+ Every polygon will be triangulated with the [earcut Rust-library](https://github.com/ciscorn/earcut-rs) and will be written into an individual `.obj`
-+ Every `.obj` files adheres to the following naming convention: `<gml_id-of-the-building>__<gml_id_of the polygon>.obj`
+### 📁 Project Structure
 
-### :wrench: Optional features
+```
+RustCityGML2OBJ/
+├── src/
+│   ├── conversion_functions.rs
+│   ├── geometry_functions.rs
+│   ├── translation_module.rs
+│   ├── write_functions.rs
+├── input/                      # Place your .gml / .xml files here
+├── output/                     # Output OBJ and JSON files appear here
+├── Cargo.toml
+├── Dockerfile
+├── Makefile
+├── .github/
+│   └── workflows/
+│       └── docker.yaml
+└── README.md
+```
 
-| Optional feature | specification |
-| -------- | -------- |
-| Building-wise translation into local CRS before the triangulation |`--tbw`|
+---
 
+### 🐋 Dockerfile Overview
 
-### CityGML Requirements:
+A two-stage Dockerfile:
 
-#### Mandatory:
+- **Stage 1**: Compiles the Rust binary using the official Rust image.
+- **Stage 2**: Creates a minimal Debian-based runtime container with the binary.
 
-+ CityGML 3.0 (In case you have an older CityGML version, you can e.g. use the [citygml-tools](https://github.com/citygml4j/citygml-tools) to upgrade your files)
-+ Files must end with `.gml`, `.GML`, `.xml`, or `.XML`
-+ Your files must be valid (e.g., free check with [CityDoctor](https://transfer.hft-stuttgart.de/gitlab/citydoctor/citydoctor2))
- 
-## Limitations
+```Dockerfile
+# Stage 1: Build the Rust binary
+FROM rustlang/rust:nightly AS builder
+WORKDIR /usr/src/app
+COPY . .
+RUN cargo build --release
 
-+ Only Buildings are supported.
-+ CityGML 1.0 and 2.0 are not supported
-+ Only RoofSurfaces, WallSurfaces, GroundSurfaces, WindowSurfaces and DoorSurfaces are currently suppported.
-+ Building Installations are not supportes
-+ Implicit geometry is not Supported
+# Stage 2: Minimal runtime image
+FROM debian:bookworm
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/src/app/target/release/RustCityGML2OBJ /usr/local/bin/rustcitygml2obj
+ENTRYPOINT ["rustcitygml2obj"]
+```
 
+---
 
-## :mailbox: Contact & Feedback
+### 🛠️ Makefile Commands
 
-Feel free to open a discussion under Issues or write us an email
+```make
+# Build binary
+build:
+	cargo build --release
 
-- [Thomas Froech](thomas.froech@tum.de)
+# Run locally
+run:
+	cargo run -- --input input --output output
+
+# Docker: Build image
+docker-build:
+	docker build -t rustcitygml2obj .
+
+# Docker: Run container (PWD is auto-mounted)
+docker-run:
+	docker run --rm -v $(PWD):/data rustcitygml2obj \
+		--input /data/input --output /data/output
+
+# Run tests
+test:
+	cargo test
+```
+
+---
+
+### ⚙️ GitHub Actions CI
+
+`.github/workflows/docker.yaml` builds the project on every push/pull request to `main`, tests it, and builds the Docker image.
+
+Key steps:
+
+- Checkout code  
+- Set up Rust  
+- Cache Cargo dependencies  
+- Build with `cargo build --release`  
+- Run `--help` test on compiled binary  
+- Build Docker image  
+
+---
+
+### 🧪 Running the Tool in Docker (PowerShell)
+
+If you're using **PowerShell**, run it like this:
+
+```powershell
+docker run --rm -v "$(Get-Location):/data" rustcitygml2obj `
+  --input /data/input `
+  --output /data/output `
+  --tbw `
+  --add-json
+```
+
+Ensure `input/` contains `.gml` or `.xml` files, and `output/` exists or will be created.
+
+---
+
+### 🔍 CLI Options
+
+```bash
+Usage: rustcitygml2obj [OPTIONS] --input <INPUT> --output <OUTPUT>
+
+Options:
+  -i, --input <INPUT>      Input file path (directory with GML/XML files)
+  -o, --output <OUTPUT>    Output directory
+      --tbw                Translate buildings into local CRS
+      --add-json           Export metadata as JSON
+      --add-bb             Include bounding boxes in OBJ
+      --import-bb          Import a predefined bounding box
+  -h, --help               Show help
+  -V, --version            Show version
+```
+
+---
+
+### 🗜️ Clean Build (Optional)
+
+```bash
+docker system prune -f   # Clean unused Docker data
+cargo clean              # Clean Rust build artifacts
+```
+
+---
+
+### ♻️ Example Workflow
+
+```bash
+# Build Docker image
+make docker-build
+
+# Run conversion inside Docker
+make docker-run
+```
+
+Or directly:
+
+```bash
+docker run --rm -v "$(PWD):/data" rustcitygml2obj `
+  --input /data/input `
+  --output /data/output `
+  --tbw --add-json
+```
+
+---
+
+### 📌 Notes
+
+- Ensure that `.gml` or `.xml` files exist in `input/` directory.
+- Output files (`.obj`, `.json`) are saved to `output/`.
+- Output metadata is optional (`--add-json`).
+- The tool leverages multi-threading with `rayon` for performance.
+
