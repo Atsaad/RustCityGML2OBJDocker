@@ -1,0 +1,2 @@
+
+docker run --rm -v "${PWD}:/data" rustcitygml2obj --input /data/input --output /data/output
