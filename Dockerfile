@@ -1,5 +1,5 @@
 # Stage 1: Build the Rust binary
-FROM rustlang/rust:nightly AS builder
+FROM rustlang/rust:latest  AS builder
 
 # Set workdir
 WORKDIR /usr/src/app
@@ -11,7 +11,7 @@ COPY . .
 RUN cargo build --release
 
 # Stage 2: Create minimal image
-FROM debian:bookworm
+FROM debian:bookworm-slim
 
 # Install lib dependencies if needed (e.g. OpenSSL)
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
